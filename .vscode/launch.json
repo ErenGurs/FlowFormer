@@ -1,0 +1,22 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "visualize_flow.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "visualize_flow.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--seq_dir", "/mnt/task_runtime/FlowFormer-Official/val5_holes_007/",
+                //"--eval_type", "sintel",
+                "--eval_type", "seq",
+                "--viz_root_dir", "./temp",
+                "--end_idx", "3",
+            ]
+        }
+    ]
+}
