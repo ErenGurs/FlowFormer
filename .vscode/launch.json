@@ -11,11 +11,14 @@
             "program": "visualize_flow.py",
             "console": "integratedTerminal",
             "args": [
-                "--seq_dir", "/mnt/task_runtime/FlowFormer-Official/val5_holes_007/",
-                //"--eval_type", "sintel",
-                "--eval_type", "seq",
+                "--eval_type", "sintel",
+                "--sintel_dir", "bms_data.fromvideo.dbg/",
+                //"--sintel_dir", "bms_data.fromvideo/",
+                //"--eval_type", "seq",
+                //"--seq_dir", "val5_holes_007/",
                 "--viz_root_dir", "./temp",
                 "--end_idx", "3",
+                "--keep_size",
             ]
         }
     ]

@@ -79,6 +79,11 @@ def compute_flow(model, image1, image2, weights=None):
     image1, image2 = image1[None].cuda(), image2[None].cuda()
 
     hws = compute_grid_indices(image_size)
+
+    # Added by Eren to prevent CUDA out pf Memory.
+    # So it doesnt go to the "if weights is None" branch
+    weights = compute_weight(hws, image_size, TRAIN_SIZE, sigma=0.05)
+
     if weights is None:     # no tile
         padder = InputPadder(image1.shape)
         image1, image2 = padder.pad(image1, image2)
@@ -128,8 +133,11 @@ def prepare_image(root_dir, viz_root_dir, fn1, fn2, keep_size):
     image2 = np.array(image2).astype(np.uint8)[..., :3]
     if not keep_size:
         dsize = compute_adaptive_image_size(image1.shape[0:2])
-        image1 = cv2.resize(image1, dsize=dsize, interpolation=cv2.INTER_CUBIC)
-        image2 = cv2.resize(image2, dsize=dsize, interpolation=cv2.INTER_CUBIC)
+        #image1 = cv2.resize(image1, dsize=dsize, interpolation=cv2.INTER_CUBIC)
+        #image2 = cv2.resize(image2, dsize=dsize, interpolation=cv2.INTER_CUBIC)
+        image1 = cv2.resize(image1, dsize=dsize, interpolation=cv2.INTER_LINEAR)
+        image2 = cv2.resize(image2, dsize=dsize, interpolation=cv2.INTER_LINEAR)
+
     image1 = torch.from_numpy(image1).permute(2, 0, 1).float()
     image2 = torch.from_numpy(image2).permute(2, 0, 1).float()
 
@@ -158,6 +166,7 @@ def build_model():
 
 def visualize_flow(root_dir, viz_root_dir, model, img_pairs, keep_size):
     weights = None
+    #idx = 0
     for img_pair in img_pairs:
         fn1, fn2 = img_pair
         print(f"processing {fn1}, {fn2}...")
@@ -167,9 +176,18 @@ def visualize_flow(root_dir, viz_root_dir, model, img_pairs, keep_size):
         flow_img = flow_viz.flow_to_image(flow)
         cv2.imwrite(viz_fn, flow_img[:, :, [2,1,0]])
 
+        # Write *.flo file
+        dirname = osp.dirname(viz_fn)
+        filename = osp.splitext(osp.basename(viz_fn))[0]
+        frame_utils.writeFlow(osp.join(dirname, filename + ".flo"), flow)
+        #flow_file = 'flow_{:04}_to_{:04}'.format(idx + 1, idx + 2)
+        #frame_utils.writeFlow(osp.join(dirname, flow_file + ".flo"), flow)
+        #idx+=1
+
 def process_sintel(sintel_dir):
     img_pairs = []
-    for scene in os.listdir(sintel_dir):
+    #for scene in os.listdir(sintel_dir):
+    for scene in sorted(os.listdir(sintel_dir)):
         dirname = osp.join(sintel_dir, scene)
         image_list = sorted(glob(osp.join(dirname, '*.png')))
         for i in range(len(image_list)-1):
