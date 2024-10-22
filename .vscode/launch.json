@@ -20,6 +20,24 @@
                 "--end_idx", "3",
                 "--keep_size",
             ]
+        },
+        {
+            "name": "inference.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "inference.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--eval_type", "sintel",
+                "--sintel_dir", "bms_data.fromvideo.dbg/",
+                //"--sintel_dir", "bms_data.fromvideo/",
+                //"--eval_type", "seq",
+                "--viz_root_dir", "./temp",
+                "--seq_dir", "bms_data.fromvideo.dbg/",
+                "--vis_dir", "./temp",
+                "--end_idx", "3",
+                "--keep_size",
+            ]
         }
     ]
 }

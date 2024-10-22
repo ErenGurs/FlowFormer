@@ -15,6 +15,7 @@ from core.utils.misc import process_cfg
 import datasets
 from utils import flow_viz
 from utils import frame_utils
+from utils import utils
 import cv2
 import math
 import os.path as osp
@@ -25,6 +26,7 @@ from utils.utils import InputPadder, forward_interpolate
 import itertools
 
 TRAIN_SIZE = [432, 960]
+#TRAIN_SIZE = [344, 768] #  ~0.8*[432, 960]
 
 # Remove it later
 import PIL
@@ -80,14 +82,17 @@ def compute_flow(model, image1, image2, weights=None):
 
     hws = compute_grid_indices(image_size)
 
-    # Added by Eren to prevent CUDA out pf Memory.
+    # Added by Eren to prevent CUDA out of Memory
     # So it doesnt go to the "if weights is None" branch
-    #
-    # The following line helps to overcome CUDA out of memory on A100 (80GB)
-    # for 1920x1440 resolution by putting FlowFormer into the "tile" mode.
-    # For now revert it back to the original code by commenting out (i.e. non-tile mode).
-    # Because flow quality is worse in "tile" mode where tile boundaries visible
-    #weights = compute_weight(hws, image_size, TRAIN_SIZE, sigma=0.05)
+    weights = compute_weight(hws, image_size, TRAIN_SIZE, sigma=0.05)
+    
+    # For larger resolutions switch to "tile" mode by setting "weights"
+    #if (min(image_size) > 720):
+    #if (max(image_size) >= 1920 and min(image_size) >= 1440) :
+    #    #eren = utils.downimage(image1, 0.5)
+    #    #if image_size[0] > image_size[1]: # check portrait
+    #    #    TRAIN_SIZE = TRAIN_SIZE[::-1]
+    #    weights = compute_weight(hws, image_size, TRAIN_SIZE, sigma=0.05)
 
     if weights is None:     # no tile
         padder = InputPadder(image1.shape)
@@ -151,8 +156,8 @@ def prepare_image(root_dir, viz_root_dir, fn1, fn2, keep_size):
     filename = osp.splitext(osp.basename(fn1))[0]
 
     viz_dir = osp.join(viz_root_dir, dirname)
-    if not osp.exists(viz_dir):
-        os.makedirs(viz_dir)
+    #if not osp.exists(viz_dir):
+    #    os.makedirs(viz_dir)
 
     viz_fn = osp.join(viz_dir, filename + '.png')
 
@@ -169,58 +174,73 @@ def build_model():
 
     return model
 
-def visualize_flow(root_dir, viz_root_dir, model, img_pairs, keep_size):
+def visualize_flow(root_dir, vis_dir, model, img_pairs, keep_size):
     weights = None
-    #idx = 0
+    idx = 0
     for img_pair in img_pairs:
         fn1, fn2 = img_pair
         print(f"processing {fn1}, {fn2}...")
 
-        image1, image2, viz_fn = prepare_image(root_dir, viz_root_dir, fn1, fn2, keep_size)
+        image1, image2, _ = prepare_image(root_dir, vis_dir, fn1, fn2, keep_size)
         flow = compute_flow(model, image1, image2, weights)
-        flow_img = flow_viz.flow_to_image(flow)
-        cv2.imwrite(viz_fn, flow_img[:, :, [2,1,0]])
+
 
         # Write *.flo file
-        dirname = osp.dirname(viz_fn)
-        filename = osp.splitext(osp.basename(viz_fn))[0]
-        frame_utils.writeFlow(osp.join(dirname, filename + ".flo"), flow)
-        #flow_file = 'flow_{:04}_to_{:04}'.format(idx + 1, idx + 2)
-        #frame_utils.writeFlow(osp.join(dirname, flow_file + ".flo"), flow)
-        #idx+=1
+        #filename = osp.splitext(osp.basename(viz_fn))[0]
+        #frame_utils.writeFlow(osp.join(vis_dir, filename + ".flo"), flow)
+        flow_file = 'flow_{:04}_to_{:04}'.format(idx + 1, idx + 2)
+        frame_utils.writeFlow(osp.join(vis_dir, flow_file + ".flo"), flow)
 
-def process_sintel(sintel_dir):
+        flow_img = flow_viz.flow_to_image(flow)
+        cv2.imwrite(osp.join(vis_dir, flow_file + '.png'), flow_img[:, :, [2,1,0]])
+        idx+=1
+
+def process_subfolder(subfolder):
     img_pairs = []
-    #for scene in os.listdir(sintel_dir):
-    for scene in sorted(os.listdir(sintel_dir)):
-        dirname = osp.join(sintel_dir, scene)
-        image_list = sorted(glob(osp.join(dirname, '*.png')))
-        for i in range(len(image_list)-1):
-            img_pairs.append((image_list[i], image_list[i+1]))
+    image_list = sorted(glob(osp.join(subfolder, '*.png')))
+    for i in range(len(image_list)-1):
+        img_pairs.append((image_list[i], image_list[i+1]))
 
     return img_pairs
 
-def generate_pairs(dirname, start_idx, end_idx):
-    img_pairs = []
-    for idx in range(start_idx, end_idx):
-        img1 = osp.join(dirname, f'{idx:06}.png')
-        img2 = osp.join(dirname, f'{idx+1:06}.png')
-        # img1 = f'{idx:06}.png'
-        # img2 = f'{idx+1:06}.png'
-        img_pairs.append((img1, img2))
+#def process_sintel(sintel_dir):
+#    img_pairs = []
+#    #for scene in os.listdir(sintel_dir):
+#    for scene in sorted(os.listdir(sintel_dir)):
+#        dirname = osp.join(sintel_dir, scene)
+#        image_list = sorted(glob(osp.join(dirname, '*.png')))
+#        for i in range(len(image_list)-1):
+#            img_pairs.append((image_list[i], image_list[i+1]))
+#
+#    return img_pairs
 
-    return img_pairs
+#def generate_pairs(dirname, start_idx, end_idx):
+#    img_pairs = []
+#    for idx in range(start_idx, end_idx):
+#        img1 = osp.join(dirname, f'{idx:06}.png')
+#        img2 = osp.join(dirname, f'{idx+1:06}.png')
+#        # img1 = f'{idx:06}.png'
+#        # img2 = f'{idx+1:06}.png'
+#        img_pairs.append((img1, img2))
+#
+#    return img_pairs
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--eval_type', default='sintel')
     parser.add_argument('--root_dir', default='.')
     parser.add_argument('--sintel_dir', default='datasets/Sintel/test/clean')
-    parser.add_argument('--seq_dir', default='demo_data/mihoyo')
+    #parser.add_argument('--seq_dir', default='demo_data/mihoyo')
     parser.add_argument('--start_idx', type=int, default=1)     # starting index of the image sequence
     parser.add_argument('--end_idx', type=int, default=1200)    # ending index of the image sequence
     parser.add_argument('--viz_root_dir', default='viz_results')
     parser.add_argument('--keep_size', action='store_true')     # keep the image size, or the image will be adaptively resized.
+
+    # Added to support common args with the other flow algorithms
+    parser.add_argument('--seq_dir', help="folder for input images. If there are subfolders, it will loop through them", default='default')
+    parser.add_argument('--vis_dir', help="output folder which will follow the structure of input seq_dir", default='default')
+    parser.add_argument('--firstfile', type=str, help='first image in seq_dir (optional)')
+    parser.add_argument('--secondfile', type=str, help='second image in seq_dir (optional)')
 
     args = parser.parse_args()
 
@@ -229,9 +249,44 @@ if __name__ == '__main__':
 
     model = build_model()
 
-    if args.eval_type == 'sintel':
-        img_pairs = process_sintel(args.sintel_dir)
-    elif args.eval_type == 'seq':
-        img_pairs = generate_pairs(args.seq_dir, args.start_idx, args.end_idx)
-    with torch.no_grad():
-        visualize_flow(root_dir, viz_root_dir, model, img_pairs, args.keep_size)
+    #if args.eval_type == 'sintel':
+    #    img_pairs = process_sintel(args.sintel_dir)
+    #elif args.eval_type == 'seq':
+    #    img_pairs = generate_pairs(args.seq_dir, args.start_idx, args.end_idx)
+    #with torch.no_grad():
+    #    visualize_flow(root_dir, viz_root_dir, model, img_pairs, args.keep_size)
+
+
+    # Continue to support args from the original validate.py
+    #if args.seq_dir == None:
+    #    args.seq_dir = args.sintel_dir
+    #if args.vis_dir == None:
+    #    args.vis_dir = args.viz_root_dir
+    
+    # Calculate flow: Iterate over files/subfolders under args.seq_dir
+    orig_seq_dir = args.seq_dir
+    orig_vis_dir = args.vis_dir
+    dirList = sorted(os.scandir(args.seq_dir), key=lambda e: e.name)
+    #for entry in os.scandir(args.seq_dir):
+    for entry in dirList:
+        if entry.name.startswith('.'):
+            continue
+        # If seq_dir includes other directories (like processed BMS data), iterate each directory
+        if entry.is_dir():
+            print ("Directory: ", entry.name)
+            args.seq_dir = orig_seq_dir + '/' + entry.name
+            args.vis_dir = orig_vis_dir + '/' + entry.name
+
+            if not os.path.exists(args.vis_dir):
+                os.makedirs(args.vis_dir)
+
+            #img_pairs = process_sintel(args.seq_dir)
+            img_pairs = process_subfolder(args.seq_dir)
+
+            with torch.no_grad():
+                visualize_flow(root_dir, args.vis_dir, model, img_pairs, args.keep_size)
+                #inference(model, args, device=device)
+        else:
+            print (entry.name)
+            #inference(model, args, device=device)
+            break
