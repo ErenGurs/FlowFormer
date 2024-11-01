@@ -1,3 +1,4 @@
+# Initially copied from FlowFormer/visualize_flow.py
 import sys
 sys.path.append('core')
 
